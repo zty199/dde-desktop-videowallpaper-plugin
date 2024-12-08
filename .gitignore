@@ -52,3 +52,10 @@ compile_commands.json
 *creator.user*
 
 *_qmlcache.qrc
+
+# debian
+debian/*debhelper*
+debian/files
+debian/dde-desktop-videowallpaper-plugin/
+debian/dde-desktop-videowallpaper-plugin.substvars
+obj-*

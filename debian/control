@@ -1,0 +1,22 @@
+Source: dde-desktop-videowallpaper-plugin
+Priority: optional
+Maintainer: Deepin Packages Builder <packages@linuxdeepin.com>
+Build-Depends:
+ cmake,
+ pkg-config,
+ debhelper (>= 11),
+ qtbase5-dev,
+ qttools5-dev,
+ libdtkcore-dev,
+ libdtkcore5-bin,
+ dde-file-manager-dev,
+ libdmr-dev | qtmultimedia5-dev,
+ libffmpegthumbnailer-dev
+Standards-Version: 1.0
+Section: libs
+Homepage: http://www.deepin.org
+ 
+Package: dde-desktop-videowallpaper-plugin
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Video wallpaper plugin for DDE Desktop.
