@@ -16,7 +16,9 @@ DCORE_USE_NAMESPACE
 
 using namespace ddplugin_videowallpaper;
 
-class WallpaperConfigGlobal : public WallpaperConfig{};
+class WallpaperConfigGlobal : public WallpaperConfig
+{
+};
 Q_GLOBAL_STATIC(WallpaperConfigGlobal, wallpaperConfig)
 
 static constexpr char kConfName[] = "org.deepin.dde.file-manager.desktop.videowallpaper";
@@ -25,7 +27,6 @@ static constexpr char kKeyEnable[] = "enable";
 WallpaperConfigPrivate::WallpaperConfigPrivate(WallpaperConfig *qq)
     : q(qq)
 {
-
 }
 
 bool WallpaperConfigPrivate::getEnable() const
@@ -74,7 +75,6 @@ void WallpaperConfig::initialize()
     if (d->settings)
         connect(d->settings, &DConfig::valueChanged,
                 this, &WallpaperConfig::configChanged, Qt::UniqueConnection);
-
 }
 
 void WallpaperConfig::configChanged(const QString &key)

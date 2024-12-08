@@ -19,6 +19,7 @@ inline constexpr char kVideoWallpaper[] = "video-wallpaper";
 class VideoWallpaerMenuCreator : public DFMBASE_NAMESPACE::AbstractSceneCreator
 {
     Q_OBJECT
+
 public:
     static QString name()
     {
@@ -30,6 +31,7 @@ public:
 class VideoWallpaperMenuScene : public DFMBASE_NAMESPACE::AbstractMenuScene
 {
     Q_OBJECT
+
 public:
     explicit VideoWallpaperMenuScene(QObject *parent = nullptr);
     QString name() const override;
@@ -38,13 +40,15 @@ public:
     bool create(QMenu *parent) override;
     void updateState(QMenu *parent) override;
     bool triggered(QAction *action) override;
+
 private:
     bool turnOn = false;
     bool onDesktop = false;
     bool isEmptyArea = false;
-    QMap<QString, QAction *> predicateAction;   // id -- instance
-    QMap<QString, QString> predicateName;   // id -- text
+    QMap<QString, QAction *> predicateAction; // id -- instance
+    QMap<QString, QString> predicateName; // id -- text
 };
-}
+
+} // namespace ddplugin_videowallpaper
 
 #endif // VIDEOWALLPAERMENUSCENE_H

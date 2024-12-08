@@ -7,15 +7,12 @@
 
 #include "wallpaperengine.h"
 #include "videoproxy.h"
-#include "videosurface.h"
 
 #include <QFileSystemWatcher>
 #include <QUrl>
 
 #ifndef USE_LIBDMR
-#include <QtMultimedia/QMediaPlayer>
-#include <QtMultimediaWidgets/QVideoWidget>
-#include <QtMultimedia/QMediaPlaylist>
+class QMediaPlayer;
 #endif
 
 namespace ddplugin_videowallpaper {
@@ -28,30 +25,28 @@ public:
     {
         return QRect(QPoint(0, 0), geometry.size());
     }
-#ifndef USE_LIBDMR
-    static QList<QMediaContent> getVideos(const QString &path);
-#else
     static QList<QUrl> getVideos(const QString &path);
-#endif
-public:
+
+private:
     VideoProxyPointer createWidget(QWidget *root);
     void setBackgroundVisible(bool v);
     QString sourcePath() const;
     QMap<QString, VideoProxyPointer> widgets;
+    void clearWidgets();
 
-    QFileSystemWatcher *watcher = nullptr;
-#ifndef USE_LIBDMR
-    QList<QMediaContent> videos;
-    QMediaPlaylist *playlist = nullptr;
-    QMediaPlayer *player = nullptr;
-    VideoSurface *surface = nullptr;
-#else
-    QList<QUrl> videos;
-#endif
 private:
+    QFileSystemWatcher *watcher = nullptr;
+
+    QList<QUrl> videos;
+#ifndef USE_LIBDMR
+    QMediaPlayer *player = nullptr;
+    QVideoSink *surface = nullptr;
+#endif
+
+    friend class WallpaperEngine;
     WallpaperEngine *q;
 };
 
-}
+} // namespace ddplugin_videowallpaper
 
 #endif // WALLPAPERENGINE_P_H

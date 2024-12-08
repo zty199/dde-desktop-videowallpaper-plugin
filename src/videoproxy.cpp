@@ -13,8 +13,8 @@ using namespace ddplugin_videowallpaper;
 DFMBASE_USE_NAMESPACE
 
 #ifdef USE_LIBDMR
-
-VideoProxy::VideoProxy(QWidget *parent) : dmr::PlayerWidget(parent)
+VideoProxy::VideoProxy(QWidget *parent)
+    : dmr::PlayerWidget(parent)
 {
     dmr::PlayerEngine &eng = engine();
     eng.setMute(true);
@@ -64,7 +64,7 @@ void VideoProxy::play()
     current = next;
     PlayerWidget::play(next);
 
-    QString hd =_engine->getBackendProperty("hwdec").toString();
+    QString hd = _engine->getBackendProperty("hwdec").toString();
     fmDebug() << "play" << next << "hardward decode" << hd;
 }
 
@@ -102,14 +102,13 @@ void VideoProxy::playNext()
         current = playList.at(idx);
         PlayerWidget::play(current);
 
-        QString hd =_engine->getBackendProperty("hwdec").toString();
+        QString hd = _engine->getBackendProperty("hwdec").toString();
         fmDebug() << "play" << current << "hardward decode" << hd;
     }
 }
-
 #else
-
-VideoProxy::VideoProxy(QWidget *parent) : QWidget(parent)
+VideoProxy::VideoProxy(QWidget *parent)
+    : QWidget(parent)
 {
     auto pal = palette();
     pal.setColor(backgroundRole(), Qt::black);
@@ -119,32 +118,36 @@ VideoProxy::VideoProxy(QWidget *parent) : QWidget(parent)
 
 VideoProxy::~VideoProxy()
 {
-
 }
 
 void VideoProxy::updateImage(const QImage &img)
 {
-    image = img.scaled(size() * devicePixelRatioF(), Qt::KeepAspectRatio);
+    image = img.scaled(img.size().boundedTo(QSize(1920, 1280)) * devicePixelRatioF(),
+                       Qt::KeepAspectRatio, Qt::FastTransformation);
     image.setDevicePixelRatio(devicePixelRatioF());
+    update();
+}
+
+void VideoProxy::clear()
+{
+    image.fill(palette().window().color());
     update();
 }
 
 void VideoProxy::paintEvent(QPaintEvent *e)
 {
     QPainter pa(this);
-    auto fill = QRect(QPoint(0,0), size());
-    pa.fillRect(fill, palette().background());
+    pa.fillRect(rect(), palette().window());
 
     if (image.isNull())
         return;
     QSize tar = image.size() / devicePixelRatioF();
 
-    int x = (fill.width() - tar.width()) / 2.0;
-    int y = (fill.height() - tar.height()) / 2.0;
-    x = x < 0 ? 0 : x;
-    y = y < 0 ? 0 : y;
+    int x = (rect().width() - tar.width()) / 2.0;
+    int y = (rect().height() - tar.height()) / 2.0;
+    // x = x < 0 ? 0 : x;
+    // y = y < 0 ? 0 : y;
 
     pa.drawImage(x, y, image);
 }
-
 #endif

@@ -65,13 +65,14 @@ bool VideoWallpaperMenuScene::create(QMenu *parent)
 void VideoWallpaperMenuScene::updateState(QMenu *parent)
 {
     auto actions = parent->actions();
-    auto actionIter = std::find_if(actions.begin(), actions.end(), [](const QAction *ac){
+    auto actionIter = std::find_if(actions.begin(), actions.end(), [](const QAction *ac) {
         return ac->property(ActionPropertyKey::kActionID).toString() == QString("wallpaper-settings");
     });
 
     if (actionIter == actions.end()) {
-        fmWarning() << "can not find action:" << "display-settings";
-        return ;
+        fmWarning() << "can not find action:"
+                    << "display-settings";
+        return;
     }
 
     QAction *indexAction = *actionIter;
@@ -86,10 +87,6 @@ bool VideoWallpaperMenuScene::triggered(QAction *action)
     if (predicateAction.values().contains(action)) {
         if (actionId == ActionID::kVideoWallpaper) {
             emit WpCfg->changeEnableState(action->isChecked());
-
-            //Check for video files
-            if (WpCfg->enable())
-                emit WpCfg->checkResource();
         }
         return true;
     }

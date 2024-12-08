@@ -11,15 +11,23 @@
 
 #include "dfm-base/dfm_desktop_defines.h"
 
-#ifndef USE_LIBDMR
-#include <QtMultimedia/QMediaContent>
-#endif
-
 #include <QDir>
 #include <QStandardPaths>
 #include <QDBusInterface>
 #include <QDBusPendingReply>
 #include <QDebug>
+#ifndef USE_LIBDMR
+#include <QVideoSink>
+#include <QVideoFrame>
+#ifdef ENABLE_AUDIO_OUTPUT
+#include <QAudioOutput>
+#include <QAudioDevice>
+#include <QMediaDevices>
+#endif
+#endif
+#include <QTimer>
+
+#include <malloc.h>
 
 using namespace ddplugin_videowallpaper;
 DFMBASE_USE_NAMESPACE
@@ -29,7 +37,6 @@ DFMBASE_USE_NAMESPACE
 
 #define CanvasCoreUnsubscribe(topic, func) \
     dpfSignalDispatcher->unsubscribe("ddplugin_core", QT_STRINGIFY2(topic), this, func);
-
 
 static QString getScreenName(QWidget *win)
 {
@@ -50,33 +57,20 @@ static QMap<QString, QWidget *> rootMap()
     return ret;
 }
 
-
 WallpaperEnginePrivate::WallpaperEnginePrivate(WallpaperEngine *qq)
     : q(qq)
 {
-
 }
 
-#ifdef USE_LIBDMR
 QList<QUrl> WallpaperEnginePrivate::getVideos(const QString &path)
 {
     QList<QUrl> ret;
     QDir dir(path);
     for (const QFileInfo &file : dir.entryInfoList(QDir::Files))
         ret << QUrl::fromLocalFile(file.absoluteFilePath());
-    return ret;
-}
-#else
-QList<QMediaContent> WallpaperEnginePrivate::getVideos(const QString &path)
-{
-    QList<QMediaContent> ret;
-    QDir dir(path);
-    for (const QFileInfo &file : dir.entryInfoList(QDir::Files))
-        ret << QMediaContent(QUrl::fromLocalFile(file.absoluteFilePath()));
 
     return ret;
 }
-#endif
 
 VideoProxyPointer WallpaperEnginePrivate::createWidget(QWidget *root)
 {
@@ -84,7 +78,7 @@ VideoProxyPointer WallpaperEnginePrivate::createWidget(QWidget *root)
     VideoProxyPointer bwp(new VideoProxy());
 
     bwp->setParent(root);
-    QRect geometry = relativeGeometry(root->geometry());   // scaled area
+    QRect geometry = relativeGeometry(root->geometry()); // scaled area
     bwp->setGeometry(geometry);
 
     bwp->setProperty(DesktopFrameProperty::kPropScreenName, getScreenName(root));
@@ -98,7 +92,7 @@ VideoProxyPointer WallpaperEnginePrivate::createWidget(QWidget *root)
 void WallpaperEnginePrivate::setBackgroundVisible(bool v)
 {
     QList<QWidget *> roots = ddplugin_desktop_util::desktopFrameRootWindows();
-    for (QWidget *root  : roots) {
+    for (QWidget *root : roots) {
         for (QObject *obj : root->children()) {
             if (QWidget *wid = dynamic_cast<QWidget *>(obj)) {
                 QString type = wid->property(DesktopFrameProperty::kPropWidgetName).toString();
@@ -116,11 +110,18 @@ QString WallpaperEnginePrivate::sourcePath() const
     return path;
 }
 
+void WallpaperEnginePrivate::clearWidgets()
+{
+    foreach (auto videoProxy, widgets.values()) {
+        videoProxy.clear();
+    }
+    widgets.clear();
+}
+
 WallpaperEngine::WallpaperEngine(QObject *parent)
     : QObject(parent)
     , d(new WallpaperEnginePrivate(this))
 {
-
 }
 
 WallpaperEngine::~WallpaperEngine()
@@ -142,20 +143,26 @@ bool WallpaperEngine::init()
         // waiting canvas menu
         dpfSignalDispatcher->subscribe("dfmplugin_menu", "signal_MenuScene_SceneAdded", this, &WallpaperEngine::registerMenu);
     }
-    connect(WpCfg, &WallpaperConfig::checkResource, this, &WallpaperEngine::checkResouce);
-    connect(WpCfg, &WallpaperConfig::changeEnableState, this, [this](bool e){
-        if (WpCfg->enable() == e)
-            return;
-        WpCfg->setEnable(e);
-        if (e) {
-            turnOn();
-            play();
-        } else
-            turnOff();
-    });
 
-    if (WpCfg->enable())
-        turnOn(false);
+    /**
+     * FIXME: add delay before video play if video-wallpaper is enabled,
+     * to avoid video stuttering when dde-shell startup
+     */
+    QTimer::singleShot(5000, [this] {
+        connect(WpCfg, &WallpaperConfig::changeEnableState, this, [this](bool e) {
+            if (WpCfg->enable() == e)
+                return;
+            WpCfg->setEnable(e);
+            if (e) {
+                turnOn();
+            } else
+                turnOff();
+        });
+
+        if (WpCfg->enable()) {
+            turnOn();
+        }
+    });
 
     return true;
 }
@@ -172,19 +179,35 @@ void WallpaperEngine::turnOn(bool b)
     d->watcher = new QFileSystemWatcher(this);
     {
         d->watcher->addPath(d->sourcePath());
+        /**
+         * FIXME: when a large video file is copied to directory,
+         * seems that signal is emitted before copy is finished,
+         * in which case player might not be able to play.
+         */
         connect(d->watcher, &QFileSystemWatcher::directoryChanged, this, &WallpaperEngine::refreshSource);
     }
+
 #ifndef USE_LIBDMR
-    d->surface = new VideoSurface;
+    d->player = new QMediaPlayer(nullptr);
+    connect(
+        d->player, &QMediaPlayer::sourceChanged, this, [&] {
+            // try to release memory
+            releaseMemory();
+        },
+        Qt::QueuedConnection);
 
-    d->player = new QMediaPlayer(nullptr, QMediaPlayer::LowLatency);
+    d->surface = new QVideoSink;
+    connect(d->surface, &QVideoSink::videoFrameChanged, this, &WallpaperEngine::catchImage);
 
-    connect(d->surface, &VideoSurface::pushImage, this, &WallpaperEngine::catchImage);
+    d->player->setVideoSink(d->surface);
+    d->player->setLoops(QMediaPlayer::Infinite);
 
-    d->player->setVideoOutput(d->surface);
-    d->player->setMuted(true);
-    d->playlist = new QMediaPlaylist(d->player);
+#ifdef ENABLE_AUDIO_OUTPUT
+    QAudioOutput *output = new QAudioOutput(QMediaDevices::defaultAudioOutput(), d->player);
+    d->player->setAudioOutput(output);
 #endif
+#endif
+
     refreshSource();
     if (b) {
         build();
@@ -199,21 +222,19 @@ void WallpaperEngine::turnOff()
     CanvasCoreUnsubscribe(signal_DesktopFrame_WindowBuilded, &WallpaperEngine::onDetachWindows);
     CanvasCoreUnsubscribe(signal_DesktopFrame_GeometryChanged, &WallpaperEngine::geometryChanged);
 
-    delete d->watcher;
+    d->watcher->deleteLater();
     d->watcher = nullptr;
+
 #ifndef USE_LIBDMR
-    d->player->pause();
-
-    delete d->playlist;
-    d->playlist = nullptr;
-
-    delete d->player;
+    d->player->setSource(QUrl());
+    d->player->deleteLater();
     d->player = nullptr;
 
-    delete d->surface;
+    d->surface->deleteLater();
     d->surface = nullptr;
 #endif
-    d->widgets.clear();
+
+    d->clearWidgets();
     d->videos.clear();
 
     // show background.
@@ -222,22 +243,23 @@ void WallpaperEngine::turnOff()
 
 void WallpaperEngine::refreshSource()
 {
+    bool wasVideosEmpty = d->videos.isEmpty();
     d->videos = d->getVideos(d->sourcePath());
+    checkResource();
 
-#ifndef USE_LIBDMR
-    bool run = d->player->state() == QMediaPlayer::PlayingState;
-
-    d->playlist->clear();
-    d->playlist->addMedia(d->videos);
-    if (!d->videos.isEmpty()) {
-        d->playlist->setCurrentIndex(0);
-        d->playlist->setPlaybackMode(QMediaPlaylist::Loop);
+    if (d->videos.isEmpty()) {
+        d->player->setSource(QUrl());
+        for (const VideoProxyPointer &bwp : d->widgets.values())
+            bwp->clear();
+        return;
     }
 
-    d->player->setPlaylist(d->playlist);
-
-    if (run)
+#ifndef USE_LIBDMR
+    bool run = d->player->playbackState() == QMediaPlayer::PlayingState;
+    if (run || wasVideosEmpty) {
+        d->player->setSource(d->videos.constFirst());
         d->player->play();
+    }
 #else
     for (const VideoProxyPointer &bwp : d->widgets.values())
         bwp->setPlayList(d->videos);
@@ -246,37 +268,51 @@ void WallpaperEngine::refreshSource()
 
 void WallpaperEngine::build()
 {
+    // clean up invalid widget
+    auto cleanupInvalidWidgets = [&] {
+        auto winMap = rootMap();
+        for (const QString &sp : d->widgets.keys()) {
+            if (!winMap.contains(sp)) {
+                auto videoProxy = d->widgets.take(sp);
+                videoProxy.clear();
+                fmInfo() << "remove screen:" << sp;
+            }
+        }
+    };
+
     QList<QWidget *> root = ddplugin_desktop_util::desktopFrameRootWindows();
     if (root.size() == 1) {
         QWidget *primary = root.first();
         if (primary == nullptr) {
-            // get screen failed,clear all widget
-            d->widgets.clear();
+            // get screen failed, clear all widget
+            d->clearWidgets();
             fmCritical() << "get primary screen failed return.";
+            cleanupInvalidWidgets();
             return;
         }
 
-        const QString screeName = getScreenName(primary);
-        if (screeName.isEmpty()) {
+        const QString screenName = getScreenName(primary);
+        if (screenName.isEmpty()) {
             fmWarning() << "can not get screen name from root window";
+            cleanupInvalidWidgets();
             return;
         }
 
-        VideoProxyPointer bwp = d->widgets.value(screeName);
-        d->widgets.clear();
+        VideoProxyPointer bwp = d->widgets.value(screenName);
         if (!bwp.isNull()) {
+            // update widget
             bwp->setParent(primary);
-            QRect geometry = d->relativeGeometry(primary->geometry());   // scaled area
+            QRect geometry = d->relativeGeometry(primary->geometry()); // scaled area
             bwp->setGeometry(geometry);
         } else {
+            // add new widget
+            fmInfo() << "screen:" << screenName << "added, create it.";
             bwp = d->createWidget(primary);
+            d->widgets.insert(screenName, bwp);
         }
-
-        d->widgets.insert(screeName, bwp);
     } else {
         // check whether to add
         for (QWidget *win : root) {
-
             const QString screenName = getScreenName(win);
             if (screenName.isEmpty()) {
                 fmWarning() << "can not get screen name from root window";
@@ -287,27 +323,18 @@ void WallpaperEngine::build()
             if (!bwp.isNull()) {
                 // update widget
                 bwp->setParent(win);
-                QRect geometry = d->relativeGeometry(win->geometry());   // scaled area
+                QRect geometry = d->relativeGeometry(win->geometry()); // scaled area
                 bwp->setGeometry(geometry);
             } else {
                 // add new widget
-                fmInfo() << "screen:" << screenName << "  added, create it.";
+                fmInfo() << "screen:" << screenName << "added, create it.";
                 bwp = d->createWidget(win);
                 d->widgets.insert(screenName, bwp);
             }
         }
-
-        // clean up invalid widget
-        {
-            auto winMap = rootMap();
-            for (const QString &sp : d->widgets.keys()) {
-                if (!winMap.contains(sp)) {
-                    d->widgets.take(sp);
-                    fmInfo() << "remove screen:" << sp;
-                }
-            }
-        }
     }
+
+    cleanupInvalidWidgets();
 }
 
 void WallpaperEngine::onDetachWindows()
@@ -328,7 +355,7 @@ void WallpaperEngine::geometryChanged()
         }
 
         if (bw.get() != nullptr) {
-            QRect geometry = d->relativeGeometry(win->geometry());   // scaled area
+            QRect geometry = d->relativeGeometry(win->geometry()); // scaled area
             bw->setGeometry(geometry);
         }
     }
@@ -338,6 +365,11 @@ void WallpaperEngine::play()
 {
     if (WpCfg->enable()) {
 #ifndef USE_LIBDMR
+        if (d->videos.isEmpty()) {
+            return;
+        }
+        // TODO: implement playlist
+        d->player->setSource(d->videos.constFirst());
         d->player->play();
 #else
         for (const VideoProxyPointer &bwp : d->widgets.values())
@@ -356,6 +388,21 @@ void WallpaperEngine::show()
         bwp->show();
 }
 
+void WallpaperEngine::releaseMemory()
+{
+    // QMetaObject::invokeMethod(
+    //     this, [] { malloc_trim(0); },
+    //     Qt::QueuedConnection);
+
+    /**
+     * FIXME: adding a little delay seems that
+     * can release as much memory as possible
+     */
+    QTimer::singleShot(800, this, [=] {
+        malloc_trim(0);
+    });
+}
+
 bool WallpaperEngine::registerMenu()
 {
     if (dfmplugin_menu_util::menuSceneContains("CanvasMenu")) {
@@ -369,25 +416,40 @@ bool WallpaperEngine::registerMenu()
         return false;
 }
 
-void WallpaperEngine::checkResouce()
+void WallpaperEngine::checkResource()
 {
     if (d->videos.isEmpty()) {
-       QString text = tr("Please add the video file to %0").arg(d->sourcePath());
-       QDBusInterface notify("org.freedesktop.Notifications", "/org/freedesktop/Notifications", "org.freedesktop.Notifications");
-       notify.setTimeout(1000);
-       QDBusPendingReply<uint> p = notify.asyncCall(QString("Notify"),
-                        QString("Video Wallpaper"),   // title
-                        static_cast<uint>(0),
-                        QString("deepin-toggle-desktop"),   // icon
-                        text,
-                        QString(), QStringList(), QVariantMap(), 5000);
+        QString text = tr("Please add the video file to %0").arg(d->sourcePath());
+        QDBusInterface notify("org.freedesktop.Notifications", "/org/freedesktop/Notifications", "org.freedesktop.Notifications");
+        notify.setTimeout(1000);
+        QDBusPendingReply<uint> p = notify.asyncCall(QString("Notify"),
+                                                     QString("Video Wallpaper"), // title
+                                                     static_cast<uint>(0),
+                                                     QString("deepin-toggle-desktop"), // icon
+                                                     text,
+                                                     QString(), QStringList(), QVariantMap(), 5000);
     }
 }
 
 #ifndef USE_LIBDMR
-void WallpaperEngine::catchImage(const QImage &img)
+void WallpaperEngine::catchImage(const QVideoFrame &frame)
 {
+    /**
+     * FIXME: QVideoFrame::toImage might cause SIGSEGV
+     * in Qt6, seems to be QVideoFrame mapped failed
+     * so try to map manually first
+     *
+     * (related to vdpau/vaapi?)
+     */
+    QVideoFrame tmp(frame);
+    bool ret = tmp.map(QVideoFrame::ReadOnly);
+    if (!ret) {
+        return;
+    }
+    // release memcpy
+    tmp.unmap();
+
     for (const VideoProxyPointer &bwp : d->widgets.values())
-        bwp->updateImage(img);
+        bwp->updateImage(frame.toImage());
 }
 #endif

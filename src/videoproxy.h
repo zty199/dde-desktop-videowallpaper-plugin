@@ -13,11 +13,6 @@
 #include <compositing_manager.h>
 #else
 #include <QWidget>
-#include <QtMultimedia/QMediaContent>
-
-class QMediaPlayer;
-class QVideoWidget;
-class QMediaPlaylist;
 #endif
 
 namespace ddplugin_videowallpaper {
@@ -26,36 +21,43 @@ namespace ddplugin_videowallpaper {
 class VideoProxy : public dmr::PlayerWidget
 {
     Q_OBJECT
+
 public:
     explicit VideoProxy(QWidget *parent = nullptr);
     ~VideoProxy();
     void setPlayList(const QList<QUrl> &list);
     void play();
     void stop();
+
 protected slots:
     void playNext();
+
 private:
     QList<QUrl> playList;
     QUrl current;
     bool run = false;
 };
-
 #else
 class VideoProxy : public QWidget
 {
     Q_OBJECT
+
 public:
     explicit VideoProxy(QWidget *parent = nullptr);
     ~VideoProxy();
     void updateImage(const QImage &img);
+    void clear();
+
 protected:
     void paintEvent(QPaintEvent *) override;
+
 private:
     QImage image;
 };
 #endif
+
 typedef QSharedPointer<VideoProxy> VideoProxyPointer;
 
-}
+} // namespace ddplugin_videowallpaper
 
 #endif // VIDEOPROXY_H

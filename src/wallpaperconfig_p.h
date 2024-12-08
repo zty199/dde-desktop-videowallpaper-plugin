@@ -16,11 +16,15 @@ class WallpaperConfigPrivate
 public:
     WallpaperConfigPrivate(WallpaperConfig *qq);
     bool getEnable() const;
+
+private:
     bool enable = false;
     DTK_CORE_NAMESPACE::DConfig *settings = nullptr;
-private:
+
+    friend class WallpaperConfig;
     WallpaperConfig *q;
 };
 
-}
+} // namespace ddplugin_videowallpaper
+
 #endif // WALLPAPERCONFIG_P_H

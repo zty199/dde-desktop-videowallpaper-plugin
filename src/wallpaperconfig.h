@@ -13,25 +13,28 @@ class WallpaperConfigPrivate;
 class WallpaperConfig : public QObject
 {
     Q_OBJECT
-    friend class WallpaperConfigPrivate;
+
 public:
     static WallpaperConfig *instance();
     void initialize();
     bool enable() const;
     void setEnable(bool);
+
 signals:
     void changeEnableState(bool enable);
-    void checkResource();
-public slots:
+
 private slots:
     void configChanged(const QString &key);
+
 protected:
     explicit WallpaperConfig(QObject *parent = nullptr);
+
 private:
+    friend class WallpaperConfigPrivate;
     WallpaperConfigPrivate *d;
 };
 
-}
+} // namespace ddplugin_videowallpaper
 
 #define WpCfg WallpaperConfig::instance()
 
