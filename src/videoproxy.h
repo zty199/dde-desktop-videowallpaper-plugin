@@ -7,35 +7,29 @@
 
 #include "ddplugin_videowallpaper_global.h"
 
-#ifdef USE_LIBDMR
-#include <player_widget.h>
-#include <player_engine.h>
-#include <compositing_manager.h>
-#else
 #include <QWidget>
+
+#ifdef USE_LIBMPV
+class MpvWidget;
 #endif
 
-namespace ddplugin_videowallpaper {
+DDP_VIDEOWALLPAPER_BEGIN_NAMESPACE
 
-#ifdef USE_LIBDMR
-class VideoProxy : public dmr::PlayerWidget
+#ifdef USE_LIBMPV
+class VideoProxy : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit VideoProxy(QWidget *parent = nullptr);
-    ~VideoProxy();
-    void setPlayList(const QList<QUrl> &list);
-    void play();
-    void stop();
+    VideoProxy(QWidget *parent = nullptr);
 
-protected slots:
-    void playNext();
+    void command(const QVariant &params);
 
 private:
-    QList<QUrl> playList;
-    QUrl current;
-    bool run = false;
+    void initUI();
+
+private:
+    MpvWidget *widget = nullptr;
 };
 #else
 class VideoProxy : public QWidget
@@ -45,6 +39,7 @@ class VideoProxy : public QWidget
 public:
     explicit VideoProxy(QWidget *parent = nullptr);
     ~VideoProxy();
+
     void updateImage(const QImage &img);
     void clear();
 
@@ -58,6 +53,6 @@ private:
 
 typedef QSharedPointer<VideoProxy> VideoProxyPointer;
 
-} // namespace ddplugin_videowallpaper
+DDP_VIDEOWALLPAPER_END_NAMESPACE
 
 #endif // VIDEOPROXY_H

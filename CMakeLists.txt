@@ -20,6 +20,7 @@ endif()
 
 # options
 option(OPT_ENABLE_QT6 "Use Qt6" ON)
+option(OPT_USE_LIBMPV "Use libmpv" ON)
 option(OPT_ENABLE_AUDIO_OUTPUT "Enable Audio Output" OFF)
 
 # if no debug, can't out in code define key '__FUNCTION__' and so on

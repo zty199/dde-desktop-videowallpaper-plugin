@@ -5,18 +5,25 @@
 #ifndef WALLPAPERENGINE_P_H
 #define WALLPAPERENGINE_P_H
 
-#include "wallpaperengine.h"
+#include "ddplugin_videowallpaper_global.h"
 #include "videoproxy.h"
 
 #include <QFileSystemWatcher>
+#include <QRect>
 #include <QUrl>
-
-#ifndef USE_LIBDMR
-class QMediaPlayer;
+#ifndef USE_LIBMPV
+#include <QMediaPlayer>
+#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+#include "videosurface.hpp"
+#include <QMediaPlaylist>
+#else
+#include <QVideoSink>
+#endif
 #endif
 
-namespace ddplugin_videowallpaper {
+DDP_VIDEOWALLPAPER_BEGIN_NAMESPACE
 
+class WallpaperEngine;
 class WallpaperEnginePrivate
 {
 public:
@@ -36,17 +43,21 @@ private:
 
 private:
     QFileSystemWatcher *watcher = nullptr;
-
-    QList<QUrl> videos;
-#ifndef USE_LIBDMR
+#ifndef USE_LIBMPV
     QMediaPlayer *player = nullptr;
+#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+    VideoSurface *surface = nullptr;
+    QMediaPlaylist *playlist = nullptr;
+#else
     QVideoSink *surface = nullptr;
 #endif
+#endif
+    QList<QUrl> videos;
 
     friend class WallpaperEngine;
     WallpaperEngine *q;
 };
 
-} // namespace ddplugin_videowallpaper
+DDP_VIDEOWALLPAPER_END_NAMESPACE
 
 #endif // WALLPAPERENGINE_P_H

@@ -9,7 +9,7 @@
 
 #include <dfm-framework/dpf.h>
 
-namespace ddplugin_videowallpaper {
+DDP_VIDEOWALLPAPER_BEGIN_NAMESPACE
 
 class WallpaperEngine;
 class VideoWallpaperPlugin : public dpf::Plugin
@@ -33,6 +33,6 @@ protected:
     WallpaperEngine *engine = nullptr;
 };
 
-} // namespace ddplugin_videowallpaper
+DDP_VIDEOWALLPAPER_END_NAMESPACE
 
 #endif // VIDEOWALLPAPERPLUGIN_H

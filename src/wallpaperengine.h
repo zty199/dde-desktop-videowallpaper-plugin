@@ -8,13 +8,11 @@
 #include "ddplugin_videowallpaper_global.h"
 
 #include <QObject>
-#ifndef USE_LIBDMR
-#include <QMediaPlayer>
-
-class QVideoFrame;
+#ifndef USE_LIBMPV
+#include <QVideoFrame>
 #endif
 
-namespace ddplugin_videowallpaper {
+DDP_VIDEOWALLPAPER_BEGIN_NAMESPACE
 
 class WallpaperEnginePrivate;
 class WallpaperEngine : public QObject
@@ -41,7 +39,7 @@ public slots:
 private slots:
     bool registerMenu();
     void checkResource();
-#ifndef USE_LIBDMR
+#ifndef USE_LIBMPV
     void catchImage(const QVideoFrame &frame);
 #endif
 
@@ -50,6 +48,6 @@ private:
     WallpaperEnginePrivate *d;
 };
 
-} // namespace ddplugin_videowallpaper
+DDP_VIDEOWALLPAPER_END_NAMESPACE
 
 #endif // WALLPAPERENGINE_H

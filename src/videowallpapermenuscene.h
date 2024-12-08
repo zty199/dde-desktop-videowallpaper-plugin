@@ -5,12 +5,13 @@
 #ifndef VIDEOWALLPAERMENUSCENE_H
 #define VIDEOWALLPAERMENUSCENE_H
 
+#include "ddplugin_videowallpaper_global.h"
 #include "dfm-base/interfaces/abstractmenuscene.h"
 #include "dfm-base/interfaces/abstractscenecreator.h"
 
 #include <QMap>
 
-namespace ddplugin_videowallpaper {
+DDP_VIDEOWALLPAPER_BEGIN_NAMESPACE
 
 namespace ActionID {
 inline constexpr char kVideoWallpaper[] = "video-wallpaper";
@@ -49,6 +50,6 @@ private:
     QMap<QString, QString> predicateName; // id -- text
 };
 
-} // namespace ddplugin_videowallpaper
+DDP_VIDEOWALLPAPER_END_NAMESPACE
 
 #endif // VIDEOWALLPAERMENUSCENE_H

@@ -13,23 +13,25 @@ DFM_LOG_REISGER_CATEGORY(DDP_VIDEOWALLPAPER_NAMESPACE)
 
 DDP_VIDEOWALLPAPER_USE_NAMESPACE
 
-VideoWallpaperPlugin::VideoWallpaperPlugin(QObject *parent) : Plugin()
+VideoWallpaperPlugin::VideoWallpaperPlugin(QObject *parent)
+    : Plugin()
 {
-
 }
 
 void ddplugin_videowallpaper::VideoWallpaperPlugin::initialize()
 {
-#ifdef USE_LIBDMR
-    // for libdmr
+#ifdef USE_LIBMPV
+    // for libmpv
     setlocale(LC_NUMERIC, "C");
 #endif
+
     // load translation
     auto trans = new QTranslator(this);
-    if (trans->load(QString(":/translations/ddplugin-videowallpaper_%1.qm").arg(QLocale::system().name())))
+    if (trans->load(QString(":/translations/ddplugin-videowallpaper_%1.qm").arg(QLocale::system().name()))) {
         QCoreApplication::installTranslator(trans);
-    else
+    } else {
         delete trans;
+    }
 }
 
 bool VideoWallpaperPlugin::start()

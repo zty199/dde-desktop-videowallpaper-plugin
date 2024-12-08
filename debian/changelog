@@ -1,3 +1,9 @@
+dde-desktop-videowallpaper-plugin (1.5.2) UNRELEASED; urgency=medium
+
+  * use libmpv instead of QtMultimedia
+
+ -- unknown <unknown@uniontech.com>  Sun, 8 Dec 2024 21:08:40 +0800
+
 dde-desktop-videowallpaper-plugin (1.5.1-1) UNRELEASED; urgency=medium
 
   * fix dde-shell random crash issue
