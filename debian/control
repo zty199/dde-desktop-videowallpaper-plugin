@@ -15,6 +15,8 @@ Build-Depends:
  libdfm6-io-dev,
  libdfm6-mount-dev,
  libdfm6-burn-dev,
+ libdde-shell-dev,
+ libmpv-dev,
  libffmpegthumbnailer-dev,
  libxcb-ewmh-dev
 Standards-Version: 4.1.3
