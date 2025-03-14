@@ -77,6 +77,23 @@ QList<QUrl> WallpaperEnginePrivate::getVideos(const QString &path)
 
 VideoProxyPointer WallpaperEnginePrivate::createWidget(QWidget *root)
 {
+    /**
+     * NOTE: https://doc.qt.io/qt-6/qopenglwidget.html
+     *
+     * When dynamically adding a QOpenGLWidget into a widget hierarchy,
+     * e.g. by parenting a new QOpenGLWidget to a widget
+     * where the corresponding top-level widget is already shown on screen,
+     * the associated native window may get implicitly destroyed and recreated
+     * if the QOpenGLWidget is the first of its kind within its window.
+     *
+     * This is because the window type changes from RasterSurface to OpenGLSurface
+     * and that has platform-specific implications.
+     * This behavior is new in Qt 6.4.
+     *
+     * So change root window's surfaceType to QSurface::OpenGLSurface first.
+     */
+    root->windowHandle()->setSurfaceType(QSurface::OpenGLSurface);
+
     VideoProxyPointer bwp(new VideoProxy(root));
     bwp->setProperty(DesktopFrameProperty::kPropScreenName, getScreenName(root));
     bwp->setProperty(DesktopFrameProperty::kPropWidgetName, "videowallpaper");
@@ -88,11 +105,6 @@ VideoProxyPointer WallpaperEnginePrivate::createWidget(QWidget *root)
     fmDebug() << "screen name" << screenName << "geometry" << root->geometry() << bwp.get();
 
     bwp->hide();
-    /**
-     * FIXME: MpvWidget inherits QOpenGLWidget,
-     * setDesktopWindow needs to be run again for root widget
-     */
-    ddplugin_desktop_util::setDesktopWindow(root);
 
     return bwp;
 }
@@ -152,7 +164,6 @@ bool WallpaperEngine::init()
         dpfSignalDispatcher->subscribe("dfmplugin_menu", "signal_MenuScene_SceneAdded", this, &WallpaperEngine::registerMenu);
     }
 
-#ifdef USE_LIBMPV
     connect(WpCfg, &WallpaperConfig::changeEnableState, this, [this](bool e) {
         if (WpCfg->enable() == e) {
             return;
@@ -166,44 +177,9 @@ bool WallpaperEngine::init()
         }
     });
 
-    /**
-     * FIXME: MpvWidget inherits QOpenGLWidget,
-     * should be initialized with root widgets,
-     * or will be treated as a standalone window.
-     * Not sure what happens
-     * (might be related to winId change)
-     */
-    turnOn(false);
-
-    QMetaObject::invokeMethod(
-        this, [&] {
-            if (WpCfg->enable()) {
-                refreshSource();
-                show();
-            }
-        },
-        Qt::QueuedConnection);
-#else
-    /**
-     * FIXME: add delay before video play if video-wallpaper is enabled,
-     * to avoid video stuttering when dde-shell startup
-     */
-    QTimer::singleShot(5000, [this] {
-        connect(WpCfg, &WallpaperConfig::changeEnableState, this, [this](bool e) {
-            if (WpCfg->enable() == e)
-                return;
-            WpCfg->setEnable(e);
-            if (e) {
-                turnOn();
-            } else
-                turnOff();
-        });
-
-        if (WpCfg->enable()) {
-            turnOn();
-        }
-    });
-#endif
+    if (WpCfg->enable()) {
+        turnOn();
+    }
 
     return true;
 }
@@ -223,29 +199,9 @@ void WallpaperEngine::turnOn(bool b)
      */
     connect(d->watcher, &QFileSystemWatcher::directoryChanged, this, &WallpaperEngine::refreshSource);
 
-#ifdef USE_LIBMPV
-    build();
-
-    if (b) {
-        refreshSource();
-        show();
-    }
-#else
+#ifndef USE_LIBMPV
     d->player = new QMediaPlayer(nullptr);
 
-#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
-    d->surface = new VideoSurface;
-    connect(d->surface, &VideoSurface::videoFrameChanged, this, &WallpaperEngine::catchImage);
-
-    d->player->setVideoOutput(d->surface);
-#ifndef ENABLE_AUDIO_OUTPUT
-    d->player->setMuted(true);
-#endif
-    d->playlist = new QMediaPlaylist(d->player);
-    d->playlist->setPlaybackMode(QMediaPlaylist::CurrentItemInLoop);
-    d->player->setPlaylist(d->playlist);
-
-#else
     connect(
         d->player, &QMediaPlayer::sourceChanged, this, [&] {
             // try to release memory
@@ -261,15 +217,14 @@ void WallpaperEngine::turnOn(bool b)
 #ifdef ENABLE_AUDIO_OUTPUT
     QAudioOutput *output = new QAudioOutput(QMediaDevices::defaultAudioOutput(), d->player);
     d->player->setAudioOutput(output);
+#endif
+#endif
 
-#endif
-#endif
     if (b) {
         build();
         refreshSource();
         show();
     }
-#endif
 }
 
 void WallpaperEngine::turnOff()
@@ -288,14 +243,7 @@ void WallpaperEngine::turnOff()
         bwp->hide();
     }
 #else
-#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
-    d->player->stop();
-
-    delete d->playlist;
-    d->playlist = nullptr;
-#else
     d->player->setSource(QUrl());
-#endif
     delete d->player;
     d->player = nullptr;
 
@@ -328,12 +276,7 @@ void WallpaperEngine::refreshSource()
         }
         releaseMemory();
 #else
-#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
-        d->player->stop();
-        d->playlist->clear();
-#else
         d->player->setSource(QUrl());
-#endif
         for (const VideoProxyPointer &bwp : d->widgets.values()) {
             bwp->clear();
         }
@@ -347,11 +290,7 @@ void WallpaperEngine::refreshSource()
         bwp->command(QVariantList {"loadfile", d->videos.constFirst().toLocalFile()});
     }
 #else
-#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
-    d->playlist->addMedia(QMediaContent(d->videos.constFirst()));
-#else
     d->player->setSource(d->videos.constFirst());
-#endif
     d->player->play();
 #endif
 }
@@ -464,12 +403,8 @@ void WallpaperEngine::play()
             bwp->command(QVariantList {"loadfile", d->videos.constFirst()});
         }
 #else
-// TODO: implement playlist
-#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
-        d->playlist->addMedia(QMediaContent(d->videos.constFirst()));
-#else
+        // TODO: implement playlist
         d->player->setSource(d->videos.constFirst());
-#endif
         d->player->play();
 #endif
         d->setBackgroundVisible(false);
@@ -538,13 +473,7 @@ void WallpaperEngine::catchImage(const QVideoFrame &frame)
      * (related to vdpau/vaapi?)
      */
     QVideoFrame tmp(frame);
-    bool ret = tmp.map(
-#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
-        QAbstractVideoBuffer::ReadOnly
-#else
-        QVideoFrame::ReadOnly
-#endif
-    );
+    bool ret = tmp.map(QVideoFrame::ReadOnly);
     if (!ret) {
         return;
     }
@@ -552,13 +481,7 @@ void WallpaperEngine::catchImage(const QVideoFrame &frame)
     tmp.unmap();
 
     for (const VideoProxyPointer &bwp : d->widgets.values()) {
-        bwp->updateImage(
-#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
-            frame.image()
-#else
-            frame.toImage()
-#endif
-        );
+        bwp->updateImage(frame.toImage());
     }
 }
 #endif

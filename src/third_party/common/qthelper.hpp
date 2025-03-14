@@ -128,11 +128,7 @@ private:
         // "QVariant::Type(obsolete), the return value should be interpreted
         // as QMetaType::Type."
         // So a cast really seems to be needed to avoid warnings (urgh).
-#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
-        return static_cast<int>(v.type()) == static_cast<int>(t);
-#else
         return static_cast<int>(v.typeId()) == static_cast<int>(t);
-#endif
     }
     void set(mpv_node *dst, const QVariant &src)
     {

@@ -7,17 +7,12 @@ Build-Depends:
  debhelper (>= 11),
  qt6-base-dev,
  qt6-base-private-dev,
- qt6-multimedia-dev,
  qt6-tools-dev,
  libdtk6core-dev,
  libdtk6core-bin,
  dde-file-manager-dev,
- libdfm6-io-dev,
- libdfm6-mount-dev,
- libdfm6-burn-dev,
  libdde-shell-dev,
  libmpv-dev,
- libffmpegthumbnailer-dev,
  libxcb-ewmh-dev
 Standards-Version: 4.1.3
 Section: libs

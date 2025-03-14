@@ -13,12 +13,7 @@
 #include <QUrl>
 #ifndef USE_LIBMPV
 #include <QMediaPlayer>
-#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
-#include "videosurface.hpp"
-#include <QMediaPlaylist>
-#else
 #include <QVideoSink>
-#endif
 #endif
 
 DDP_VIDEOWALLPAPER_BEGIN_NAMESPACE
@@ -45,12 +40,7 @@ private:
     QFileSystemWatcher *watcher = nullptr;
 #ifndef USE_LIBMPV
     QMediaPlayer *player = nullptr;
-#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
-    VideoSurface *surface = nullptr;
-    QMediaPlaylist *playlist = nullptr;
-#else
     QVideoSink *surface = nullptr;
-#endif
 #endif
     QList<QUrl> videos;
 
